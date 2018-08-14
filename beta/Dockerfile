@@ -20,27 +20,50 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*
 
+# Add a non-root user
+RUN useradd -u 1001 -r -g 0 -s /sbin/nologin default
+
 # Install WebSphere Liberty
 ENV LIBERTY_VERSION 2018.8.0_1
 RUN LIBERTY_URL=$(wget -q -O - https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/wasdev/downloads/wlp/index.yml  | grep $LIBERTY_VERSION -A 3 | sed -n 's/\s*webProfile7:\s//p' | tr -d '\r')  \
     && echo $LIBERTY_URL \
     && wget -q $LIBERTY_URL -U UA-IBM-WebSphere-Liberty-Docker -O /tmp/wlp-beta.zip \
     && unzip -q /tmp/wlp-beta.zip -d /opt/ibm \
-    && rm /tmp/wlp-beta.zip
+    && rm /tmp/wlp-beta.zip \
+    && chown -R 1001:0 /opt/ibm/wlp \
+    && chmod -R g+rw /opt/ibm/wlp
 ENV PATH=/opt/ibm/wlp/bin:$PATH
 
 # Set Path Shortcuts
 ENV LOG_DIR=/logs \
     WLP_OUTPUT_DIR=/opt/ibm/wlp/output
-RUN mkdir /logs \
-    && ln -s $WLP_OUTPUT_DIR/defaultServer /output \
-    && ln -s /opt/ibm/wlp/usr/servers/defaultServer /config \
-    && ln -s /opt/ibm /liberty
 
 # Configure WebSphere Liberty
 RUN /opt/ibm/wlp/bin/server create \
     && rm -rf $WLP_OUTPUT_DIR/.classCache /output/workarea
 COPY server.xml /opt/ibm/wlp/usr/servers/defaultServer/
+
+RUN mkdir /logs \
+    && mkdir /etc/wlp \
+    && mkdir /lib.index.cache \
+    && ln -s $WLP_OUTPUT_DIR/defaultServer /output \
+    && ln -s /opt/ibm/wlp/usr/servers/defaultServer /config \
+    && ln -s /opt/ibm /liberty \
+    && chown -R 1001:0 /config \
+    && chmod -R g+rw /config \
+    && chown -R 1001:0 /logs \
+    && chmod -R g+rw /logs \
+    && chown -R 1001:0 /output \
+    && chmod -R g+rw /output \
+    && chown -R 1001:0 /etc/wlp \
+    && chmod -R g+rw /etc/wlp \
+    && chown -R 1001:0 /opt/ibm/wlp/output \
+    && chmod -R g+rw /opt/ibm/wlp/output \
+    && chown -R 1001:0 /lib.index.cache \
+    && chmod -R g+rw /lib.index.cache
+
+USER 1001
+
 EXPOSE 9080 9443
 
 CMD ["/opt/ibm/wlp/bin/server", "run", "defaultServer"]
